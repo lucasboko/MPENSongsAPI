@@ -12,6 +12,7 @@ routers = APIRouter()
 
 origins = [
     "http://localhost:5173",
+    "https://mpen-songs.vercel.app",
 ]
 
 app.add_middleware(
