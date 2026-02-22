@@ -1,6 +1,6 @@
 from datetime import datetime
 from bson import ObjectId
-from fastapi import FastAPI, APIRouter, HTTPException, Response, status
+from fastapi import FastAPI, APIRouter, HTTPException
 from pymongo import ReturnDocument
 from databases.config import songs_collection
 from databases.models import SongModel, SongUpdateModel, SongsCollectionModel
@@ -27,7 +27,7 @@ app.add_middleware(
 @routers.get("/api/songs", response_description="Get all songs")
 async def songs():
     songs = SongsCollectionModel(songs=await songs_collection.find().to_list())
-    return {item.id: item for item in songs.songs}
+    return {item.id: item for item in sorted(songs.songs, key=lambda x: x.name)}
 
 
 @routers.get("/api/songs/{song_id}", response_description="Get one song")
@@ -43,7 +43,6 @@ async def get_song(song_id : str):
     
     raise HTTPException(status_code=404, detail=f"Song {song_id} not found")
     
-
 
 @routers.post("/api/songs", response_description="Create a song")
 async def create_song(song: SongModel):
@@ -92,8 +91,4 @@ async def delete_song(song_id: str):
     raise HTTPException(status_code=404, detail=f"Song {id} not found")
 
 
-# if __name__ == "__main__":
-#     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
-    
 app.include_router(routers)

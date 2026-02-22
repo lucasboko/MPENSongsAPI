@@ -59,5 +59,3 @@ class SongModel(BaseModel):
 
 class SongsCollectionModel(BaseModel):
     songs: List[SongModel]
-
- 

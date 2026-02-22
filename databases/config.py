@@ -1,9 +1,9 @@
 import pymongo
 from pymongo import AsyncMongoClient
-from dotenv import dotenv_values
 import os
+from dotenv import load_dotenv
 
-config = dotenv_values(".env")
+load_dotenv()
 
 client = AsyncMongoClient(
     "mongodb+srv://" + os.environ.get('DB_USER') + ":" + os.environ.get('DB_PASSWORD') + "@cluster0.6bjvmbp.mongodb.net/?appName=Cluster0",
