@@ -1,10 +1,12 @@
 from datetime import datetime
 from bson import ObjectId
+import json
 from fastapi import FastAPI, APIRouter, HTTPException
 from pymongo import ReturnDocument
 from databases.config import songs_collection
 from databases.models import SongModel, SongUpdateModel, SongsCollectionModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import WebSocket, WebSocketDisconnect
 
 
 app = FastAPI()
@@ -23,11 +25,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: str):
+        for connection in self.active_connections:
+            await connection.send_json(message)
+
+manager = ConnectionManager()
+
+
+@app.websocket("/mpensongsws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            # Keep the connection alive, potentially handling client-sent messages
+            data = await websocket.receive_text()
+            # Optional: echo or handle client messages
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+        await manager.broadcast("A client disconnected.")
+
+
 
 @routers.get("/api/songs", response_description="Get all songs")
 async def songs():
     songs = SongsCollectionModel(songs=await songs_collection.find().to_list())
     return {item.id: item for item in sorted(songs.songs, key=lambda x: x.name)}
+
 
 
 @routers.get("/api/songs/{song_id}", response_description="Get one song")
@@ -52,9 +86,12 @@ async def create_song(song: SongModel):
         new_song["created"] = int(datetime.timestamp(datetime.now()))
         result = await songs_collection.insert_one(new_song)
         new_song["_id"] = str(result.inserted_id)
+        
+        await manager.broadcast(json.dumps({"status": "new_song", "song": new_song}))
+    
     except Exception as error:
          raise HTTPException(status_code=404, detail=error)
-    
+     
     return new_song
 
 
@@ -73,6 +110,7 @@ async def put(song_id : str, song: SongUpdateModel):
         updated_song["_id"] = str(updated_song["_id"])
         
         if updated_song is not None:
+            await manager.broadcast(json.dumps({"status": "updated_song", "song": updated_song}))
             return updated_song
         else:
             raise HTTPException(status_code=404, detail=f"Song not found")
